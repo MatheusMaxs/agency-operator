@@ -1,23 +1,45 @@
 from html import escape
 
+from app.nvidia import generate_design_brief
+
 
 def build_site(business: dict, preview_url: str | None = None) -> tuple[str, str, dict]:
-    name = escape(business.get("name") or "Local Business")
-    category = escape(business.get("category") or "local service")
-    city = escape(business.get("city") or "your city")
-    country = escape(business.get("country") or "Europe")
+    raw_name = str(business.get("name") or "Local Business")
+    raw_category = str(business.get("category") or "local service")
+    raw_city = str(business.get("city") or "your city")
+    raw_country = str(business.get("country") or "Europe")
+    name = escape(raw_name)
+    category = escape(raw_category)
+    city = escape(raw_city)
+    country = escape(raw_country)
     phone = escape(business.get("phone") or "")
     email = escape(business.get("email") or "")
+    ai_brief = generate_design_brief(business) or {}
+    ai_palette = ai_brief.get("palette") if isinstance(ai_brief.get("palette"), list) else []
+    palette = ai_palette[:4] if len(ai_palette) >= 4 else ["#18241f", "#f6efe3", "#c98552", "#ffffff"]
+    hero_headline = escape(str(ai_brief.get("hero_headline") or f"A clearer online home for {raw_name}."))
+    hero_subtitle = escape(
+        str(
+            ai_brief.get("hero_subtitle")
+            or f"A fast, mobile-ready website concept for a {raw_category} serving customers in {raw_city}."
+        )
+    )
+    cta_primary = escape(str(ai_brief.get("cta_primary") or "Request a booking"))
+    service_items = ai_brief.get("services") if isinstance(ai_brief.get("services"), list) else []
+    service_items = [escape(str(item)) for item in service_items[:3]]
+    while len(service_items) < 3:
+        service_items.append(["Clear offer", "Mobile-first trust", "Easy contact"][len(service_items)])
 
     brief = {
-        "visual_direction": "warm editorial local-business landing page",
-        "palette": ["#18241f", "#f6efe3", "#c98552", "#ffffff"],
-        "sections": ["hero", "about", "services", "proof", "location", "faq", "contact"],
+        "visual_direction": ai_brief.get("visual_direction") or "warm editorial local-business landing page",
+        "palette": palette,
+        "sections": ai_brief.get("sections") or ["hero", "about", "services", "proof", "location", "faq", "contact"],
         "rules": ["no fake testimonials", "mobile first", "clear CTA", "localized copy"],
+        "model_assisted": bool(ai_brief),
     }
 
     css = """
-    :root { color-scheme: light; --ink:#18241f; --paper:#f6efe3; --accent:#c98552; --muted:#65746d; }
+    :root { color-scheme: light; --ink:__INK__; --paper:__PAPER__; --accent:__ACCENT__; --surface:__SURFACE__; --muted:#65746d; }
     * { box-sizing: border-box; }
     body { margin:0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif; color:var(--ink); background:var(--paper); }
     a { color: inherit; }
@@ -43,6 +65,7 @@ def build_site(business: dict, preview_url: str | None = None) -> tuple[str, str
     footer { padding:36px 0; border-top:1px solid rgba(24,36,31,.12); color:var(--muted); }
     @media (max-width: 820px) { .hero, .grid { grid-template-columns:1fr; } .visual { min-height:300px; } header { align-items:flex-start; flex-direction:column; } }
     """
+    css = css.replace("__INK__", str(palette[0])).replace("__PAPER__", str(palette[1])).replace("__ACCENT__", str(palette[2])).replace("__SURFACE__", str(palette[3]))
 
     html = f"""
     <!doctype html>
@@ -63,10 +86,10 @@ def build_site(business: dict, preview_url: str | None = None) -> tuple[str, str
           <main>
             <section class="hero">
               <div>
-                <h1>A clearer online home for {name}.</h1>
-                <p class="lead">A simple, fast, mobile-ready website concept for a {category} serving customers in {city}. Built to make the business easier to trust, find, and contact.</p>
+                <h1>{hero_headline}</h1>
+                <p class="lead">{hero_subtitle} Built to make the business easier to trust, find, and contact.</p>
                 <div class="cta">
-                  <a class="button" href="#contact">Request a booking</a>
+                  <a class="button" href="#contact">{cta_primary}</a>
                   <a class="button secondary" href="#services">See services</a>
                 </div>
               </div>
@@ -75,9 +98,9 @@ def build_site(business: dict, preview_url: str | None = None) -> tuple[str, str
             <section id="services">
               <h2>What customers need to know, fast.</h2>
               <div class="grid">
-                <div class="service"><h3>Clear offer</h3><p class="muted">Explain the core service without making visitors search through social posts or old pages.</p></div>
-                <div class="service"><h3>Mobile first</h3><p class="muted">Most local customers browse on a phone. This layout keeps actions visible and simple.</p></div>
-                <div class="service"><h3>Contact ready</h3><p class="muted">Phone, email, address, and call-to-action are easy to find from every device.</p></div>
+                <div class="service"><h3>{service_items[0]}</h3><p class="muted">Explain the core service without making visitors search through social posts or old pages.</p></div>
+                <div class="service"><h3>{service_items[1]}</h3><p class="muted">Most local customers browse on a phone. This layout keeps actions visible and simple.</p></div>
+                <div class="service"><h3>{service_items[2]}</h3><p class="muted">Phone, email, address, and call-to-action are easy to find from every device.</p></div>
               </div>
             </section>
             <section>

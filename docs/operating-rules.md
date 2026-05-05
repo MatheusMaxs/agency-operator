@@ -28,7 +28,7 @@ MVP states:
 - `CONTACTED`
 - `REPLIED`
 - `INTERESTED`
-- `STRIPE_SENT`
+- `PAYMENT_LINK_SENT`
 - `PAID`
 - `DELIVERED`
 - `REJECTED`
@@ -45,6 +45,12 @@ Approval gates:
 - First email outreach: manual approval at first.
 - Auto reply: disabled until confidence and templates are proven.
 - Payment link: allowed only after clear customer interest.
+
+First-month commercial targets:
+
+- Primary offer: complete local business website for `1000 EUR`.
+- Care plans: `49-149 EUR/month` for hosting, updates, and analytics.
+- Payment provider: Kiwify for month one, with alternative processors reviewed after validation.
 
 Daily review questions:
 

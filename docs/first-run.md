@@ -85,6 +85,20 @@ curl -X POST http://127.0.0.1:8000/tools/send_outreach \
   -d '{"business_id":1}'
 ```
 
+Create a Kiwify payment link after clear interest:
+
+```bash
+curl -X POST http://127.0.0.1:8000/tools/create_payment_link \
+  -H "Content-Type: application/json" \
+  -d '{"business_id":1,"package_name":"LOCAL_BUSINESS_SITE"}'
+```
+
+Webhook endpoint for Kiwify payment events:
+
+```text
+https://YOUR_API_DOMAIN/webhooks/kiwify
+```
+
 ## 4. Dashboard
 
 From Windows, tunnel dashboard over Tailscale:

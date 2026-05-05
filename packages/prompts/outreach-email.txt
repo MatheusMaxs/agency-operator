@@ -9,7 +9,9 @@ I noticed {{specific_problem}} and built a small preview concept here:
 
 This is an automated but reviewable preview from {{brand_name}}. I do not pretend this message is handwritten.
 
-If you like it, I can customize and publish a simple mobile-ready site from {{price_range}} EUR depending on scope.
+If you like it, I can customize and publish a complete mobile-ready local business website for around {{upfront_price_eur}} EUR depending on scope.
+
+Ongoing hosting, updates, and analytics are available from {{care_price_range_eur}} EUR/month.
 
 If this is not relevant, reply "no thanks" and I will not contact you again.
 

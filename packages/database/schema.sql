@@ -149,14 +149,43 @@ CREATE TABLE IF NOT EXISTS payments (
   id BIGSERIAL PRIMARY KEY,
   business_id BIGINT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
   package_name TEXT NOT NULL,
-  stripe_customer_id TEXT,
-  checkout_session_id TEXT,
+  provider TEXT NOT NULL DEFAULT 'kiwify',
+  provider_customer_id TEXT,
+  provider_checkout_id TEXT,
+  provider_payment_id TEXT,
   payment_status TEXT NOT NULL DEFAULT 'PENDING',
   amount INTEGER NOT NULL,
   currency TEXT NOT NULL DEFAULT 'eur',
+  checkout_url TEXT,
   invoice_url TEXT,
+  raw_payload JSONB NOT NULL DEFAULT '{}',
   paid_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'kiwify';
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS provider_customer_id TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS provider_checkout_id TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS provider_payment_id TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS checkout_url TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS raw_payload JSONB NOT NULL DEFAULT '{}';
+
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL DEFAULT 'kiwify',
+  provider_subscription_id TEXT,
+  plan_name TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'PENDING',
+  amount INTEGER NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'eur',
+  checkout_url TEXT,
+  raw_payload JSONB NOT NULL DEFAULT '{}',
+  started_at TIMESTAMPTZ,
+  current_period_end TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(provider, provider_subscription_id)
 );
 
 CREATE TABLE IF NOT EXISTS approvals (

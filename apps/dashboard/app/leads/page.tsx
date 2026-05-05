@@ -14,7 +14,7 @@ type Business = {
 };
 
 function badgeClass(state: string) {
-  if (["QUALIFIED", "SITE_DEPLOYED", "CONTACT_READY", "PAID"].includes(state)) return "badge good";
+  if (["QUALIFIED", "SITE_DEPLOYED", "CONTACT_READY", "PAYMENT_LINK_SENT", "PAID"].includes(state)) return "badge good";
   if (["FAILED", "DO_NOT_CONTACT", "REJECTED"].includes(state)) return "badge bad";
   return "badge warn";
 }

@@ -1,6 +1,7 @@
 import hashlib
 import json
 import re
+import time
 from datetime import datetime, timezone
 from typing import Any, Callable
 
@@ -8,6 +9,8 @@ import httpx
 
 from app.actions import log_agent_action
 from app.db import get_conn
+from app.deployers import deploy_static_site_to_vercel
+from app.payments import create_kiwify_payment_link
 from app.safety import SafetyError, assert_approved_if_required, assert_business_can_be_contacted
 from app.settings import settings
 from app.site_builder import build_site
@@ -43,6 +46,7 @@ def discover_businesses(payload: dict[str, Any]) -> dict[str, Any]:
     country = str(payload.get("country") or "Portugal")
     city = str(payload.get("city") or "Porto")
     limit = min(int(payload.get("limit") or 10), 50)
+    imported_businesses = payload.get("businesses") if isinstance(payload.get("businesses"), list) else []
     categories = [
         "Restaurant",
         "Dental clinic",
@@ -62,29 +66,69 @@ def discover_businesses(payload: dict[str, Any]) -> dict[str, Any]:
             "INSERT INTO cities(country, city) VALUES(%s,%s) ON CONFLICT DO NOTHING",
             (country, city),
         )
-        for idx in range(limit):
-            category = categories[idx % len(categories)]
-            name = f"{city} {category} Concept {idx + 1}"
-            key = dedupe_key(name, city, country)
-            email = f"hello+demo-{slugify(name)}@example.com"
+        source_rows = imported_businesses[:limit]
+        if not source_rows:
+            source_rows = [
+                {
+                    "name": f"{city} {categories[idx % len(categories)]} Concept {idx + 1}",
+                    "category": categories[idx % len(categories)],
+                    "email": f"hello+demo-{idx + 1}@example.com",
+                    "source_url": f"manual-seed://{slugify(country)}/{slugify(city)}/{idx + 1}",
+                    "rating": 4.0 + ((idx % 9) / 10),
+                    "review_count": 8 + idx * 3,
+                }
+                for idx in range(limit)
+            ]
+
+        for idx, source in enumerate(source_rows):
+            if not isinstance(source, dict):
+                continue
+            name = str(source.get("name") or f"{city} Business {idx + 1}").strip()
+            if not name:
+                continue
+            category = str(source.get("category") or source.get("type") or categories[idx % len(categories)])
+            row_city = str(source.get("city") or city)
+            row_country = str(source.get("country") or country)
+            key = dedupe_key(name, row_city, row_country)
+            email = source.get("email")
             row = conn.execute(
                 """
                 INSERT INTO businesses (
-                  name, category, city, country, email, source_url, lead_state, dedupe_key, rating, review_count
-                ) VALUES (%s,%s,%s,%s,%s,%s,'DISCOVERED',%s,%s,%s)
-                ON CONFLICT (dedupe_key) DO UPDATE SET updated_at=now()
-                RETURNING id, name, category, city, country, email, lead_state
+                  name, category, city, country, address, phone, email, website,
+                  instagram_url, facebook_url, google_maps_url, source_url,
+                  lead_state, dedupe_key, rating, review_count
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'DISCOVERED',%s,%s,%s)
+                ON CONFLICT (dedupe_key) DO UPDATE SET
+                  category=coalesce(EXCLUDED.category, businesses.category),
+                  address=coalesce(EXCLUDED.address, businesses.address),
+                  phone=coalesce(EXCLUDED.phone, businesses.phone),
+                  email=coalesce(EXCLUDED.email, businesses.email),
+                  website=coalesce(EXCLUDED.website, businesses.website),
+                  instagram_url=coalesce(EXCLUDED.instagram_url, businesses.instagram_url),
+                  facebook_url=coalesce(EXCLUDED.facebook_url, businesses.facebook_url),
+                  google_maps_url=coalesce(EXCLUDED.google_maps_url, businesses.google_maps_url),
+                  source_url=coalesce(EXCLUDED.source_url, businesses.source_url),
+                  rating=coalesce(EXCLUDED.rating, businesses.rating),
+                  review_count=coalesce(EXCLUDED.review_count, businesses.review_count),
+                  updated_at=now()
+                RETURNING id, name, category, city, country, email, website, lead_state
                 """,
                 (
                     name,
                     category,
-                    city,
-                    country,
+                    row_city,
+                    row_country,
+                    source.get("address"),
+                    source.get("phone"),
                     email,
-                    f"manual-seed://{slugify(country)}/{slugify(city)}/{idx + 1}",
+                    source.get("website"),
+                    source.get("instagram_url"),
+                    source.get("facebook_url"),
+                    source.get("google_maps_url"),
+                    source.get("source_url") or source.get("url"),
                     key,
-                    4.0 + ((idx % 9) / 10),
-                    8 + idx * 3,
+                    source.get("rating") or None,
+                    source.get("review_count") or None,
                 ),
             ).fetchone()
             created.append(dict(row))
@@ -101,11 +145,55 @@ def audit_business(payload: dict[str, Any]) -> dict[str, Any]:
         audit_score = 15
         problems = ["No website found", "Customers may rely only on social/profile pages", "No owned conversion path"]
         recommendations = ["Create a simple mobile-first website", "Add clear CTA", "Add contact and location details"]
+        mobile_score = 0
+        speed_score = 0
+        visual_score = 0
+        cta_score = 0
+        seo_score = 0
+        has_ssl = False
         state = "HAS_NO_SITE"
     else:
-        audit_score = 52
-        problems = ["Website needs manual visual review", "CTA and mobile quality need verification"]
-        recommendations = ["Improve above-the-fold clarity", "Check speed, SSL, SEO metadata, and forms"]
+        url = str(website)
+        if not url.startswith(("http://", "https://")):
+            url = f"https://{url}"
+        started = time.perf_counter()
+        try:
+            response = httpx.get(url, follow_redirects=True, timeout=15)
+            elapsed = time.perf_counter() - started
+            html = response.text.lower()[:200_000]
+            has_ssl = str(response.url).startswith("https://")
+            has_title = "<title" in html
+            has_meta_description = "name=\"description\"" in html or "name='description'" in html
+            has_cta = any(term in html for term in ["book", "contact", "quote", "reservation", "call", "appointment"])
+            status_ok = response.status_code < 400
+            speed_score = max(20, min(90, int(95 - elapsed * 18))) if status_ok else 20
+            seo_score = 35 + (25 if has_title else 0) + (25 if has_meta_description else 0) + (15 if has_ssl else 0)
+            cta_score = 72 if has_cta else 35
+            mobile_score = 58
+            visual_score = 52
+            audit_score = int((speed_score + seo_score + cta_score + mobile_score + visual_score) / 5)
+            problems = []
+            if not has_ssl:
+                problems.append("Website does not resolve over HTTPS")
+            if not has_meta_description:
+                problems.append("SEO description is missing or hard to detect")
+            if not has_cta:
+                problems.append("Clear booking/contact CTA is hard to detect")
+            if elapsed > 3:
+                problems.append("Website response appears slow")
+            if not problems:
+                problems.append("Website still needs manual visual and mobile review")
+            recommendations = ["Improve above-the-fold clarity", "Make contact actions obvious", "Review mobile layout and local SEO"]
+        except Exception as exc:
+            audit_score = 38
+            mobile_score = 35
+            speed_score = 20
+            visual_score = 35
+            cta_score = 30
+            seo_score = 35
+            has_ssl = url.startswith("https://")
+            problems = ["Website could not be checked reliably", str(exc)[:180]]
+            recommendations = ["Verify the website manually", "Create a faster fallback preview", "Check SSL, SEO, and contact CTA"]
         state = "HAS_BAD_SITE"
 
     with get_conn() as conn:
@@ -121,12 +209,12 @@ def audit_business(payload: dict[str, Any]) -> dict[str, Any]:
                 business_id,
                 website,
                 audit_score,
-                45 if website else 0,
-                50 if website else 0,
-                45 if website else 0,
-                35 if website else 0,
-                45 if website else 0,
-                website.startswith("https://") if website else False,
+                mobile_score,
+                speed_score,
+                visual_score,
+                cta_score,
+                seo_score,
+                has_ssl,
                 json.dumps(problems),
                 json.dumps(recommendations),
             ),
@@ -221,7 +309,14 @@ def generate_site(payload: dict[str, Any]) -> dict[str, Any]:
 
 def deploy_site(payload: dict[str, Any]) -> dict[str, Any]:
     site_id = int(payload["site_id"])
-    preview_url = f"{settings.base_public_url}/generated-sites/{site_id}/html"
+    with get_conn() as conn:
+        site = conn.execute("SELECT id, title, html FROM generated_sites WHERE id=%s", (site_id,)).fetchone()
+        if not site:
+            raise ValueError("Site not found")
+
+    deployment = deploy_static_site_to_vercel(name=site["title"] or f"site-{site_id}", html=site["html"])
+    preview_url = deployment["url"] if deployment and deployment.get("url") else f"{settings.base_public_url}/generated-sites/{site_id}/html"
+
     with get_conn() as conn:
         row = conn.execute(
             """
@@ -235,7 +330,7 @@ def deploy_site(payload: dict[str, Any]) -> dict[str, Any]:
         if not row:
             raise ValueError("Site not found")
         conn.execute("UPDATE businesses SET lead_state='SITE_DEPLOYED', updated_at=now() WHERE id=%s", (row["business_id"],))
-    return {"site": dict(row)}
+    return {"site": dict(row), "deployment": deployment or {"provider": "api-preview", "url": preview_url}}
 
 
 def prepare_outreach(payload: dict[str, Any]) -> dict[str, Any]:
@@ -265,7 +360,9 @@ I noticed there may be room for a clearer web presence, so I built a small previ
 
 This is an automated but human-reviewable preview from {settings.brand_name}. I do not pretend this message is handwritten.
 
-If you like it, I can customize and publish a simple mobile-ready site from 100-300 EUR depending on scope.
+If you like it, I can customize and publish a complete mobile-ready local business website for around {settings.upfront_site_price_eur} EUR depending on scope.
+
+Ongoing hosting, updates, and analytics are available from {settings.care_basic_price_eur}-{settings.care_growth_price_eur} EUR/month.
 
 If this is not relevant, reply "no thanks" and I will not contact you again.
 
@@ -348,6 +445,16 @@ def send_outreach(payload: dict[str, Any]) -> dict[str, Any]:
     return {"dry_run": False, "message": dict(row)}
 
 
+def create_payment_link(payload: dict[str, Any]) -> dict[str, Any]:
+    business_id = int(payload["business_id"])
+    package_name = str(payload.get("package_name") or "LOCAL_BUSINESS_SITE")
+    business = get_business(business_id)
+    if business["lead_state"] == "DO_NOT_CONTACT":
+        raise SafetyError("Business is marked DO_NOT_CONTACT")
+    payment = create_kiwify_payment_link(business_id, package_name)
+    return {"business_id": business_id, "payment": payment}
+
+
 def get_new_replies(payload: dict[str, Any]) -> dict[str, Any]:
     return {"replies": [], "note": "Connect inbound email webhooks before enabling automated replies."}
 
@@ -362,12 +469,15 @@ def get_daily_metrics(payload: dict[str, Any]) -> dict[str, Any]:
               (SELECT count(*) FROM generated_sites) AS sites,
               (SELECT count(*) FROM outreach_messages WHERE status IN ('SENT','DRY_RUN_SENT')) AS contacts_sent,
               (SELECT coalesce(sum(amount),0) FROM payments WHERE payment_status='PAID') AS revenue_cents,
+              (SELECT count(DISTINCT business_id) FROM payments WHERE payment_status='PAID') AS paid_customers,
+              (SELECT coalesce(sum(amount),0) FROM subscriptions WHERE status='ACTIVE') AS mrr_cents,
               (SELECT count(*) FROM approvals WHERE status='PENDING') AS approvals_pending,
               (SELECT count(*) FROM agent_actions) AS actions
             """
         ).fetchone()
     metrics = dict(row)
     metrics["revenue_eur"] = float(metrics.pop("revenue_cents") or 0) / 100
+    metrics["mrr_eur"] = float(metrics.pop("mrr_cents") or 0) / 100
     return metrics
 
 
@@ -379,6 +489,7 @@ TOOLS: dict[str, ToolFn] = {
     "deploy_site": deploy_site,
     "prepare_outreach": prepare_outreach,
     "send_outreach": send_outreach,
+    "create_payment_link": create_payment_link,
     "get_new_replies": get_new_replies,
     "get_daily_metrics": get_daily_metrics,
 }

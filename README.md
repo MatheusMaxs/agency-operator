@@ -9,6 +9,7 @@ This project gives you the base machine:
 - Redis queue worker for slow jobs.
 - MCP-style HTTP bridge that Hermes or another agent can call.
 - Next.js dashboard for overview, leads, approvals, and actions.
+- First-month commercial stack: NVIDIA build models, Kiwify payments, Vercel preview deploys, and EUR pricing.
 - Safety gates: no duplicate outreach, do-not-contact protection, dry-run email by default, approval before first outreach.
 
 It is intentionally an MVP. It does not scrape at scale, does not bypass platform limits, does not clone protected designs, and does not send real email until you configure a provider and disable dry-run.
@@ -71,8 +72,20 @@ Recommended order:
 5. `deploy_site`
 6. `prepare_outreach`
 7. `send_outreach`
+8. `create_payment_link` after the business shows interest
 
 `send_outreach` creates an approval request by default. You approve in the dashboard or API before a real send.
+
+## First Month Offer
+
+Default pricing is aimed at European local businesses:
+
+- Complete local business website: `1000 EUR`
+- Care Basic: `49 EUR/month`
+- Care Standard: `99 EUR/month`
+- Care Growth: `149 EUR/month`
+
+Kiwify checkout URLs are configured through `.env`. Vercel deploys are used when `VERCEL_TOKEN` is set; otherwise previews stay on the API preview endpoint.
 
 ## Important Safety Notes
 

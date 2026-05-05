@@ -27,3 +27,5 @@ Recommended forbidden commands:
 - Any destructive file or server commands.
 
 Start with manual scheduling. Add cron only after the first safe end-to-end campaign works.
+
+For month one, Hermes should use browser-use/Playwright to collect public business data, then import structured rows through `discover_businesses` instead of writing directly to Postgres.

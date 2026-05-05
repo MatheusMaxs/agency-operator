@@ -4,7 +4,7 @@ This is not legal advice. Use a responsible adult/legal guardian and qualified p
 
 Minimum safe rules:
 
-- If the operator is under 18, an adult/legal guardian must handle Stripe, contracts, invoices, taxes, and business ownership.
+- If the operator is under 18, an adult/legal guardian must handle payments, contracts, invoices, taxes, and business ownership.
 - Outreach must be transparent and include an easy opt-out.
 - Do not claim a business requested work if it did not.
 - Do not imply partnership with Google, Meta, directories, or the target business.
@@ -24,7 +24,7 @@ Email wording must include:
 
 Payment rules:
 
-- Use Stripe or another legitimate processor.
+- Use Kiwify or another legitimate payment processor.
 - Do not take payment without clear package terms.
 - Store package, amount, currency, status, and invoice link.
 - Deliver only what was promised.

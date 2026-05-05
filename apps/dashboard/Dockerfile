@@ -1,7 +1,7 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
-COPY apps/dashboard/package.json ./
-RUN npm install
+COPY apps/dashboard/package*.json ./
+RUN npm ci
 
 FROM node:22-alpine AS builder
 WORKDIR /app

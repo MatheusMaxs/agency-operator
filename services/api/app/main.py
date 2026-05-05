@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import Body, FastAPI, HTTPException
+from fastapi import Body, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from redis import Redis
@@ -8,6 +8,7 @@ from rq import Queue
 from rq.job import Job
 
 from app.db import get_conn, init_db
+from app.payments import handle_kiwify_webhook
 from app.settings import settings
 from app.tools import TOOLS, call_tool
 
@@ -40,6 +41,9 @@ def health() -> dict[str, Any]:
         "tools": sorted(TOOLS.keys()),
         "email_dry_run": settings.email_dry_run,
         "outreach_requires_approval": settings.outreach_requires_approval,
+        "payments_provider": "kiwify",
+        "nvidia_configured": bool(settings.nvidia_api_key and settings.nvidia_text_model),
+        "vercel_configured": bool(settings.vercel_token),
     }
 
 
@@ -192,6 +196,56 @@ def list_outreach_messages(limit: int = 100) -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
+@app.get("/payments")
+def list_payments(limit: int = 100) -> list[dict[str, Any]]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT p.*, b.name AS business_name
+            FROM payments p
+            JOIN businesses b ON b.id=p.business_id
+            ORDER BY p.id DESC
+            LIMIT %s
+            """,
+            (min(limit, 500),),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+@app.get("/subscriptions")
+def list_subscriptions(limit: int = 100) -> list[dict[str, Any]]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT s.*, b.name AS business_name
+            FROM subscriptions s
+            JOIN businesses b ON b.id=s.business_id
+            ORDER BY s.id DESC
+            LIMIT %s
+            """,
+            (min(limit, 500),),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+@app.post("/webhooks/kiwify")
+def kiwify_webhook(
+    payload: dict[str, Any] = Body(default_factory=dict),
+    x_agency_webhook_token: str | None = Header(default=None),
+    x_kiwify_token: str | None = Header(default=None),
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    if settings.kiwify_webhook_token:
+        bearer = f"Bearer {settings.kiwify_webhook_token}"
+        provided = {x_agency_webhook_token, x_kiwify_token, authorization}
+        if settings.kiwify_webhook_token not in provided and bearer not in provided:
+            raise HTTPException(status_code=401, detail="Invalid Kiwify webhook token")
+    try:
+        return handle_kiwify_webhook(payload)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @app.get("/approvals")
 def list_approvals(status: str | None = None) -> list[dict[str, Any]]:
     with get_conn() as conn:
@@ -270,6 +324,7 @@ DESCRIPTION_BY_TOOL = {
     "deploy_site": "Mark a generated site as deployed and expose its preview URL.",
     "prepare_outreach": "Create a transparent outreach email draft with opt-out text.",
     "send_outreach": "Send or dry-run outreach after safety checks and approval.",
+    "create_payment_link": "Create a Kiwify payment or care-plan link for an interested business.",
     "get_new_replies": "Placeholder for inbound email reply integration.",
     "get_daily_metrics": "Return overview metrics for dashboard and daily review.",
 }

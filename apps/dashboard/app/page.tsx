@@ -8,6 +8,8 @@ type Overview = {
   approvals_pending: number;
   actions: number;
   revenue_eur: number;
+  mrr_eur: number;
+  paid_customers: number;
 };
 
 export default async function Page() {
@@ -15,6 +17,8 @@ export default async function Page() {
 
   const metrics = [
     ["Revenue EUR", overview.revenue_eur.toFixed(2)],
+    ["MRR EUR", overview.mrr_eur.toFixed(2)],
+    ["Paid customers", overview.paid_customers],
     ["Businesses", overview.businesses],
     ["Qualified", overview.qualified],
     ["Sites", overview.sites],
