@@ -1,0 +1,16 @@
+Create a simple local-business website preview.
+
+Rules:
+
+- Do not clone protected designs.
+- Do not use copyrighted images unless licensed.
+- Do not invent testimonials.
+- Make the first screen strong and clear.
+- Use real public business details only.
+- Make the layout mobile-first.
+- Include a clear CTA.
+- Include privacy/contact placeholders if missing.
+
+Business:
+
+{{business_json}}

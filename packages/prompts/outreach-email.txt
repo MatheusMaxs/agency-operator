@@ -1,0 +1,17 @@
+Subject: Quick website idea for {{business_name}}
+
+Hi {{business_name}},
+
+I found {{business_name}} while looking at local businesses in {{city}}.
+
+I noticed {{specific_problem}} and built a small preview concept here:
+{{preview_url}}
+
+This is an automated but reviewable preview from {{brand_name}}. I do not pretend this message is handwritten.
+
+If you like it, I can customize and publish a simple mobile-ready site from {{price_range}} EUR depending on scope.
+
+If this is not relevant, reply "no thanks" and I will not contact you again.
+
+Thanks,
+{{brand_name}}
