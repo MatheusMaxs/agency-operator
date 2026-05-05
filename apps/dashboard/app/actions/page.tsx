@@ -14,21 +14,28 @@ type AgentAction = {
 
 export default async function ActionsPage() {
   const actions = await apiGet<AgentAction[]>("/agent-actions?limit=200");
+  const failed = actions.filter((action) => action.status === "failed").length;
+  const completed = actions.filter((action) => action.status === "completed").length;
+
   return (
     <div className="stack">
       <div className="topbar">
         <div>
-          <h1>Agent Actions</h1>
-          <div className="sub">Every tool call should leave an audit trail.</div>
+          <div className="kicker">Audit trail</div>
+          <h1>Agent actions</h1>
+          <div className="sub">Every tool call leaves a trace so Hermes and operators can be reviewed safely.</div>
         </div>
+        <div className="toolbar"><span className="chip green">{completed} completed</span><span className="chip">{failed} failed</span></div>
       </div>
-      <div className="card">
+
+      <div className="card pad">
+        <div className="card-header"><div><div className="kicker">System log</div><h2>Recent operations</h2></div><span className="chip">Limit 200</span></div>
         <table className="table">
           <thead><tr><th>ID</th><th>Agent</th><th>Action</th><th>Target</th><th>Status</th><th>Error</th></tr></thead>
           <tbody>
             {actions.map((action) => (
               <tr key={action.id}>
-                <td>{action.id}</td>
+                <td className="mono">#{action.id}</td>
                 <td>{action.agent_name}</td>
                 <td>{action.action_type}</td>
                 <td className="small">{action.target_type || "-"} {action.target_id || ""}</td>

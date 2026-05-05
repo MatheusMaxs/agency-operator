@@ -13,15 +13,22 @@ type Approval = {
 
 export default async function ApprovalsPage() {
   const approvals = await apiGet<Approval[]>("/approvals");
+  const pending = approvals.filter((approval) => approval.status === "PENDING").length;
+  const approved = approvals.filter((approval) => approval.status === "APPROVED").length;
+
   return (
     <div className="stack">
       <div className="topbar">
         <div>
+          <div className="kicker">Safety gates</div>
           <h1>Approvals</h1>
-          <div className="sub">Manual gates before sensitive actions like first outreach.</div>
+          <div className="sub">Manual review points before sensitive actions such as first outreach and customer-facing messages.</div>
         </div>
+        <div className="toolbar"><span className="chip green">{pending} pending</span><span className="chip">{approved} approved</span></div>
       </div>
-      <div className="card">
+
+      <div className="card pad">
+        <div className="card-header"><div><div className="kicker">Control queue</div><h2>Manual decisions</h2></div><span className="chip">Owner reviewed</span></div>
         <table className="table">
           <thead><tr><th>Type</th><th>Target</th><th>Status</th><th>Reason</th><th>Actions</th></tr></thead>
           <tbody>

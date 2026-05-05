@@ -38,17 +38,27 @@ export default async function PaymentsPage() {
     apiGet<Payment[]>("/payments?limit=200"),
     apiGet<Subscription[]>("/subscriptions?limit=200"),
   ]);
+  const revenue = payments.filter((payment) => payment.payment_status === "PAID").reduce((sum, payment) => sum + payment.amount, 0);
+  const mrr = subscriptions.filter((subscription) => subscription.status === "ACTIVE").reduce((sum, subscription) => sum + subscription.amount, 0);
 
   return (
     <div className="stack">
       <div className="topbar">
         <div>
+          <div className="kicker">Money ops</div>
           <h1>Payments</h1>
-          <div className="sub">Kiwify upfront revenue and care-plan MRR.</div>
+          <div className="sub">Kiwify upfront website payments and recurring care plans for hosting, updates, and analytics.</div>
         </div>
+        <div className="toolbar"><span className="chip green">{money(revenue, "eur")}</span><span className="chip">MRR {money(mrr, "eur")}</span></div>
       </div>
-      <div className="card">
-        <h2>Upfront</h2>
+
+      <div className="grid two">
+        <div className="card metric-card"><div className="metric">Upfront collected</div><div className="value">{money(revenue, "eur")}</div><div className="delta">Goal EUR 10,000</div></div>
+        <div className="card metric-card"><div className="metric">Active MRR</div><div className="value">{money(mrr, "eur")}</div><div className="delta">Care plan engine</div></div>
+      </div>
+
+      <div className="card pad">
+        <div className="card-header"><div><div className="kicker">Kiwify checkout</div><h2>Upfront</h2></div><span className="chip">Website package</span></div>
         <table className="table">
           <thead><tr><th>Business</th><th>Package</th><th>Status</th><th>Amount</th><th>Checkout</th></tr></thead>
           <tbody>
@@ -64,8 +74,9 @@ export default async function PaymentsPage() {
           </tbody>
         </table>
       </div>
-      <div className="card">
-        <h2>Care Plans</h2>
+
+      <div className="card pad">
+        <div className="card-header"><div><div className="kicker">Recurring revenue</div><h2>Care plans</h2></div><span className="chip">49-149 EUR/mo</span></div>
         <table className="table">
           <thead><tr><th>Business</th><th>Plan</th><th>Status</th><th>Monthly</th><th>Checkout</th></tr></thead>
           <tbody>
